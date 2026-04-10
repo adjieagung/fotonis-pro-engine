@@ -1,23 +1,27 @@
 import streamlit as st
+import google.generativeai as genai
 import requests
-import base64
-import json
+import io
+from PIL import Image
 
 # --- KONFIGURASI HALAMAN ---
 st.set_page_config(page_title="Mesin Fotonis Pro", page_icon="🚀", layout="wide")
 
-# --- AMBIL API KEYS DARI SECRETS ---
+# --- AMBIL API KEYS ---
 try:
     GEMINI_KEY = st.secrets["GEMINI_API_KEY"]
     REMOVE_BG_API_KEY = st.secrets["REMOVE_BG_API_KEY"]
+    
+    # Konfigurasi Library Resmi Google
+    genai.configure(api_key=GEMINI_KEY)
 except KeyError:
-    st.error("⚠️ API Key belum lengkap. Pastikan GEMINI_API_KEY dan REMOVE_BG_API_KEY sudah terisi di Streamlit Secrets.")
+    st.error("⚠️ API Key belum lengkap di Streamlit Secrets.")
     st.stop()
 
 st.title("🚀 Mesin Fotonis Pro: Ultralight")
-st.markdown("**Sistem Pembuat Katalog Otomatis & Analisa Ekspor Global**")
+st.markdown("**Sistem Pembuat Katalog & Analisa Ekspor Global (SDK Version)**")
 
-# --- FUNGSI HAPUS BACKGROUND VIA API (0% CPU Server) ---
+# --- FUNGSI HAPUS BACKGROUND VIA API ---
 def remove_bg_api(image_bytes):
     response = requests.post(
         'https://api.remove.bg/v1.0/removebg',
@@ -31,10 +35,15 @@ def remove_bg_api(image_bytes):
         st.error(f"Gagal hapus background: {response.text}")
         return None
 
-# --- FUNGSI ANALISA GEMINI VIA REQUESTS MURNI ---
-def analisa_gemini(image_bytes):
-    img_b64 = base64.b64encode(image_bytes).decode('utf-8')
-    prompt_text = """
+# --- FUNGSI ANALISA GEMINI (LIBRARY RESMI) ---
+def analisa_gemini_sdk(image_bytes):
+    # Setup Model yang terbukti paling stabil
+    model = genai.GenerativeModel('gemini-1.5-flash')
+    
+    # Ubah bytes menjadi format gambar (PIL) yang disukai library Google
+    img_pil = Image.open(io.BytesIO(image_bytes))
+    
+    prompt = """
     Anda adalah pakar pemasaran alat berat dan industrial global. 
     Analisa gambar produk ini dan berikan output berikut:
     1. **Nama Produk:** (Komersial & Profesional)
@@ -43,21 +52,9 @@ def analisa_gemini(image_bytes):
     Format jawaban menggunakan Markdown yang rapi dan profesional.
     """
     
-    payload = {
-        "contents": [{
-            "parts": [
-                {"text": prompt_text},
-                {"inline_data": {"mime_type": "image/png", "data": img_b64}}
-            ]
-        }]
-    }
-    # Kendali penuh ada di baris ini:
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={GEMINI_KEY}"
-    headers = {'Content-Type': 'application/json'}
-    
-    response = requests.post(url, headers=headers, data=json.dumps(payload))
-    response.raise_for_status()
-    return response.json()['candidates'][0]['content']['parts'][0]['text']
+    # Kirim prompt dan gambar langsung ke model
+    response = model.generate_content([prompt, img_pil])
+    return response.text
 
 # --- UI UTAMA ---
 uploaded_file = st.file_uploader("Upload Foto Produk", type=['jpg', 'png', 'jpeg'])
@@ -74,7 +71,6 @@ if uploaded_file:
             with st.spinner("Memotong background dalam hitungan detik..."):
                 result_bytes = remove_bg_api(file_bytes)
                 if result_bytes:
-                    # Simpan hasil bersih ke memory Streamlit
                     st.session_state['gambar_bersih'] = result_bytes 
                     st.image(result_bytes, caption="Hasil Bersih", use_container_width=True)
                     st.success("Background berhasil dihapus!")
@@ -84,16 +80,16 @@ if uploaded_file:
     # --- TOMBOL AI GLOBAL ---
     if st.button("🌍 Analisa AI Global"):
         if 'gambar_bersih' not in st.session_state:
-            st.warning("⚠️ Silakan klik 'Proses Cepat' terlebih dahulu untuk membersihkan gambar sebelum dianalisa.")
+            st.warning("⚠️ Silakan klik 'Proses Cepat' terlebih dahulu.")
         else:
             with st.spinner("Gemini sedang menyusun spesifikasi ekspor global..."):
                 try:
-                    hasil_ai = analisa_gemini(st.session_state['gambar_bersih'])
+                    # Memanggil fungsi baru yang pakai SDK Google
+                    hasil_ai = analisa_gemini_sdk(st.session_state['gambar_bersih'])
                     st.success("✅ Analisa Selesai!")
                     
-                    # Tampilkan hasil di dalam kotak yang rapi
                     with st.container(border=True):
                         st.markdown(hasil_ai)
                         
                 except Exception as e:
-                    st.error(f"Terjadi kesalahan saat menghubungi Gemini: {e}")
+                    st.error(f"Terjadi kesalahan: {e}")
