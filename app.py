@@ -52,7 +52,7 @@ def analisa_gemini(image_bytes):
         }]
     }
     # Kendali penuh ada di baris ini:
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={GEMINI_KEY}"
     headers = {'Content-Type': 'application/json'}
     
     response = requests.post(url, headers=headers, data=json.dumps(payload))
