@@ -1,49 +1,51 @@
 import streamlit as st
 import requests
-import json
-from rembg import remove
-from PIL import Image
+import base64
 import io
+from PIL import Image
 
-# 1. Optimasi Model: Gunakan 'u2netp' (versi kecil/cepat)
-def clean_bg(img_input):
-    # Mengurangi ukuran gambar sebelum diproses AI agar RAM tidak bengkak
-    img_input.thumbnail((800, 800)) 
-    return remove(img_input, model_name="u2netp")
+# --- KONFIGURASI ---
+# Kita tetap gunakan Requests Murni agar "Power"
+GEMINI_KEY = st.secrets["GEMINI_API_KEY"]
+# Jika Anda punya API Key Remove.bg, masukkan di sini
+# Jika tidak, kita bisa gunakan endpoint alternatif
+REMOVE_BG_API_KEY = st.secrets.get("REMOVE_BG_API_KEY", "YOUR_FREE_KEY")
 
-# 2. UI dengan batasan 3 Gambar
-st.title("🚀 Mesin Fotonis Pro (Fast Mode)")
-st.info("Mode Optimasi Aktif: Batas 3 Gambar untuk Kecepatan Maksimal.")
+st.title("🚀 Mesin Fotonis Pro: Ultralight")
 
-uploaded_files = st.file_uploader("Upload Maksimal 3 Foto Produk", 
-                                  accept_multiple_files=True, 
-                                  type=['png', 'jpg', 'jpeg'])
+def remove_bg_api(image_bytes):
+    # Mengirim gambar ke API eksternal (CPU Server Streamlit 0%)
+    response = requests.post(
+        'https://api.remove.bg/v1.0/removebg',
+        files={'image_file': image_bytes},
+        data={'size': 'auto'},
+        headers={'X-Api-Key': REMOVE_BG_API_KEY},
+    )
+    if response.status_code == requests.codes.ok:
+        return response.content
+    else:
+        st.error("Gagal hapus background. Pastikan API Key benar.")
+        return None
 
-if uploaded_files:
-    # Membatasi jumlah file yang diproses
-    files_to_process = uploaded_files[:3] 
+# --- UI ---
+uploaded_file = st.file_uploader("Upload Foto Produk", type=['jpg', 'png', 'jpeg'])
+
+if uploaded_file:
+    file_bytes = uploaded_file.read()
+    col1, col2 = st.columns(2)
     
-    if len(uploaded_files) > 3:
-        st.warning("Hanya 3 foto pertama yang akan diproses di mode cepat ini.")
-
-    cols = st.columns(3) # Buat 3 kolom sejajar
+    with col1:
+        st.image(file_bytes, caption="Original")
     
-    for idx, file in enumerate(files_to_process):
-        with cols[idx]:
-            with st.spinner(f"Memproses {idx+1}..."):
-                # Proses Visual
-                img_raw = Image.open(file)
-                img_clean = clean_bg(img_raw)
-                
-                st.image(img_clean, caption=f"Produk {idx+1}", use_container_width=True)
-                
-                # Tombol Analisa AI tetap menggunakan Requests
-                if st.button(f"Analisa Produk {idx+1}"):
-                    # Kompres ke JPEG kualitas rendah untuk dikirim ke API agar transmisi cepat
-                    buf = io.BytesIO()
-                    img_clean.convert("RGB").save(buf, format="JPEG", quality=70)
-                    img_bytes = buf.getvalue()
+    with col2:
+        if st.button("Proses Cepat"):
+            with st.spinner("Eksekusi via API..."):
+                # Proses sangat ringan karena dikerjakan server lain
+                result = remove_bg_api(file_bytes)
+                if result:
+                    st.image(result, caption="Hasil Bersih")
                     
-                    # Panggil fungsi call_gemini_vision yang sudah kita buat sebelumnya
-                    # response = call_gemini_vision(img_bytes, prompt)
-                    st.success("AI Analisa Selesai!")
+    # Lanjut ke Analisa Gemini (Tetap pakai Requests Murni Anda)
+    if st.button("Analisa AI Global"):
+        # Panggil fungsi requests ke Gemini Anda di sini...
+        st.success("Siap ekspor ke pasar Global!")
