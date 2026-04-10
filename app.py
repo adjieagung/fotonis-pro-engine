@@ -38,7 +38,7 @@ def remove_bg_api(image_bytes):
 # --- FUNGSI ANALISA GEMINI (LIBRARY RESMI) ---
 def analisa_gemini_sdk(image_bytes):
     # Setup Model yang terbukti paling stabil
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-1.5-flash-latest')
     
     # Ubah bytes menjadi format gambar (PIL) yang disukai library Google
     img_pil = Image.open(io.BytesIO(image_bytes))
